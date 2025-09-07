@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unit Converter — Distance · Weight · Temperature · Data · Time · Currency</title>
+  <style>
+    :root{ --bg:#0b1020; --panel:#0f172a; --text:#e5e7eb; --muted:#9ca3af; --accent:#60a5fa; --accent2:#93c5fd; --border:#1f2937; }
+    :root[data-theme="light"]{ --bg:#f7f9fc; --panel:#ffffff; --text:#0b1220; --muted:#5b6472; --accent:#2563eb; --accent2:#1e40af; --border:#e7eaf0; }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100svh;color:var(--text);background:
+      radial-gradient(1200px 900px at 10% -10%, #0f1a35 0%, rgba(15,26,53,0) 45%),
+      var(--bg);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;display:grid;place-items:start center;padding:24px}
+    html[data-theme="light"] body{background:
+      radial-gradient(1200px 900px at 10% -10%, #e8f1ff 0%, rgba(232,241,255,0) 45%),
+      radial-gradient(900px 700px at 100% 0%, #ffecee 0%, rgba(255,236,238,0) 35%),
+      var(--bg);
+      transition: background .35s ease, color .35s ease;}
+
+    .app{width:min(1000px,100%)}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .brand{display:flex;gap:10px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#2563eb);display:grid;place-items:center;box-shadow:0 8px 26px #2563eb55}
+    .brand h1{margin:0;font-size:20px}
+    .tools{display:flex;gap:8px;align-items:center}
+    .btn{cursor:pointer;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:10px 12px;border-radius:12px;font-weight:600}
+    .btn:hover{box-shadow:0 0 0 1px var(--border), 0 6px 16px #0008}
+
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:18px;box-shadow:0 10px 30px #0004;padding:16px}
+
+    .tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .tab{padding:10px 12px;border:1px solid var(--border);border-radius:999px;background:var(--panel);cursor:pointer}
+    .tab.active{background:linear-gradient(135deg,var(--accent),#2563eb);color:#fff;border:none}
+
+    .grid{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+    @media (max-width:720px){.grid{grid-template-columns:1fr}}
+
+    .field{display:grid;gap:8px}
+    label{font-size:12px;color:var(--muted)}
+    input, select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--panel);color:var(--text);outline:none}
+    .swap{display:grid;place-items:center}
+
+    .note{color:var(--muted);font-size:12px;margin-top:6px}
+    .result{font-size:28px;font-weight:800;margin-top:8px}
+
+    .hidden{display:none}
+
+    details{margin-top:10px}
+    details pre{white-space:pre-wrap;font-size:12px;line-height:1.4;color:var(--text);background:#0002;padding:8px;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">🔁</div>
+        <h1>Unit Converter</h1>
+      </div>
+      <div class="tools">
+        <button id="theme" class="btn" title="Toggle light/dark">🌗</button>
+        <button id="copy" class="btn" title="Copy result">📋 Copy</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="tabs">
+        <button class="tab active" data-kind="distance">Distance</button>
+        <button class="tab" data-kind="weight">Weight</button>
+        <button class="tab" data-kind="temperature">Temperature</button>
+        <button class="tab" data-kind="data">Data</button>
+        <button class="tab" data-kind="time">Time</button>
+        <button class="tab" data-kind="currency">Currency</button>
+      </div>
+
+      <div class="grid">
+        <div class="field">
+          <label for="val">Value</label>
+          <input id="val" type="number" inputmode="decimal" placeholder="Enter a number" />
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <div class="swap"><button id="swap" class="btn" title="Swap units">⇅ Swap</button></div>
+        </div>
+        <div class="field">
+          <label for="from">From</label>
+          <select id="from"></select>
+        </div>
+        <div class="field">
+          <label for="to">To</label>
+          <select id="to"></select>
+        </div>
+      </div>
+
+      <!-- Currency-only controls -->
+      <div id="currencyControls" class="note hidden" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+        <span>Sample rates (static). Optional override:</span>
+        <label for="rateOverride">1 <span id="ovFrom">FROM</span> = </label>
+        <input id="rateOverride" type="number" step="0.0001" placeholder="e.g., 3.6725" style="width:140px"/>
+        <span><span id="ovTo">TO</span></span>
+        <button id="clearOverride" class="btn">Clear</button>
+      </div>
+
+      <div class="note" id="note">Precise conversions with sensible rounding. Temperature uses exact formulas.</div>
+      <div class="result" id="out">—</div>
+    </section>
+
+    <details class="card"><summary>Diagnostics & Tests</summary>
+      <pre id="tests"></pre>
+    </details>
+  </div>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const state = { kind:'distance', theme: localStorage.getItem('uc_theme')||'dark' };
+
+    // ===== Units =====
+    const DIST = {
+      m: {name:'Meters (m)', toBase:x=>x, fromBase:x=>x},
+      km:{name:'Kilometers (km)', toBase:x=>x*1000, fromBase:x=>x/1000},
+      cm:{name:'Centimeters (cm)', toBase:x=>x/100, fromBase:x=>x*100},
+      mm:{name:'Millimeters (mm)', toBase:x=>x/1000, fromBase:x=>x*1000},
+      mi:{name:'Miles (mi)', toBase:x=>x*1609.344, fromBase:x=>x/1609.344},
+      yd:{name:'Yards (yd)', toBase:x=>x*0.9144, fromBase:x=>x/0.9144},
+      ft:{name:'Feet (ft)', toBase:x=>x*0.3048, fromBase:x=>x/0.3048},
+      in:{name:'Inches (in)', toBase:x=>x*0.0254, fromBase:x=>x/0.0254},
+    };
+
+    const WEIGHT = {
+      kg:{name:'Kilograms (kg)', toBase:x=>x, fromBase:x=>x}, // base kg
+      g: {name:'Grams (g)', toBase:x=>x/1000, fromBase:x=>x*1000},
+      mg:{name:'Milligrams (mg)', toBase:x=>x/1e6, fromBase:x=>x*1e6},
+      lb:{name:'Pounds (lb)', toBase:x=>x*0.45359237, fromBase:x=>x/0.45359237},
+      oz:{name:'Ounces (oz)', toBase:x=>x*0.028349523125, fromBase:x=>x/0.028349523125},
+      t: {name:'Metric tonnes (t)', toBase:x=>x*1000, fromBase:x=>x/1000}
+    };
+
+    const TEMP = {
+      C:{name:'Celsius (°C)'},
+      F:{name:'Fahrenheit (°F)'},
+      K:{name:'Kelvin (K)'}
+    };
+
+    const DATA = { // base: bytes
+      b:  {name:'Bits (b)',    toBase:x=>x/8,            fromBase:x=>x*8},
+      B:  {name:'Bytes (B)',   toBase:x=>x,              fromBase:x=>x},
+      KB: {name:'Kilobytes (KB, 10^3)', toBase:x=>x*1e3, fromBase:x=>x/1e3},
+      MB: {name:'Megabytes (MB, 10^6)', toBase:x=>x*1e6, fromBase:x=>x/1e6},
+      GB: {name:'Gigabytes (GB, 10^9)', toBase:x=>x*1e9, fromBase:x=>x/1e9},
+      TB: {name:'Terabytes (TB, 10^12)',toBase:x=>x*1e12,fromBase:x=>x/1e12},
+      KiB:{name:'Kibibytes (KiB, 2^10)',toBase:x=>x*1024, fromBase:x=>x/1024},
+      MiB:{name:'Mebibytes (MiB, 2^20)',toBase:x=>x*(1024**2),fromBase:x=>x/(1024**2)},
+      GiB:{name:'Gibibytes (GiB, 2^30)',toBase:x=>x*(1024**3),fromBase:x=>x/(1024**3)},
+      TiB:{name:'Tebibytes (TiB, 2^40)',toBase:x=>x*(1024**4),fromBase:x=>x/(1024**4)}
+    };
+
+    const TIME = { // base: seconds
+      ms:{name:'Milliseconds (ms)', toBase:x=>x/1000, fromBase:x=>x*1000},
+      s: {name:'Seconds (s)',       toBase:x=>x,      fromBase:x=>x},
+      min:{name:'Minutes (min)',    toBase:x=>x*60,   fromBase:x=>x/60},
+      h: {name:'Hours (h)',         toBase:x=>x*3600, fromBase:x=>x/3600},
+      d: {name:'Days (d)',          toBase:x=>x*86400,fromBase:x=>x/86400},
+      wk:{name:'Weeks (wk)',        toBase:x=>x*604800,fromBase:x=>x/604800}
+    };
+
+    // Currency sample rates vs USD (static example — edit as you like)
+    const FX_BASE = 'USD';
+    const FX_RATES = {
+      USD: {name:'US Dollar', rate:1},
+      EUR: {name:'Euro', rate:0.92},
+      GBP: {name:'British Pound', rate:0.78},
+      AED: {name:'UAE Dirham', rate:3.6725},
+      INR: {name:'Indian Rupee', rate:83.0},
+      JPY: {name:'Japanese Yen', rate:145},
+      AUD: {name:'Australian Dollar', rate:1.48}
+    };
+
+    function currencyConvert(val, from, to){
+      // if override provided use 1 FROM = X TO
+      const ov = parseFloat($('#rateOverride').value);
+      if(isFinite(ov) && ov>0){ return val * ov; }
+      const rFrom = FX_RATES[from]?.rate; const rTo = FX_RATES[to]?.rate;
+      if(!isFinite(rFrom) || !isFinite(rTo)) return NaN;
+      const inUSD = val / rFrom; // since rates are per USD
+      return inUSD * rTo;
+    }
+
+    function unitsFor(kind){
+      switch(kind){
+        case 'distance': return DIST;
+        case 'weight': return WEIGHT;
+        case 'temperature': return TEMP;
+        case 'data': return DATA;
+        case 'time': return TIME;
+        case 'currency': return FX_RATES;
+      }
+    }
+
+    // ===== UI wiring =====
+    function populateUnits(){
+      const units = unitsFor(state.kind);
+      const opts = Object.entries(units).map(([k,v])=>`<option value="${k}">${v.name || k}</option>`).join('');
+      $('#from').innerHTML = opts;
+      $('#to').innerHTML = opts;
+      // sensible defaults per kind
+      if(state.kind==='temperature'){ $('#from').value='C'; $('#to').value='F'; $('#note').textContent='Exact temperature formulas.'; $('#currencyControls').classList.add('hidden'); }
+      else if(state.kind==='distance'){ $('#from').value='m'; $('#to').value='km'; $('#note').textContent='Metric & imperial distances.'; $('#currencyControls').classList.add('hidden'); }
+      else if(state.kind==='weight'){ $('#from').value='kg'; $('#to').value='lb'; $('#note').textContent='Metric & imperial weights.'; $('#currencyControls').classList.add('hidden'); }
+      else if(state.kind==='data'){ $('#from').value='MB'; $('#to').value='MiB'; $('#note').textContent='SI (KB/MB/GB) vs IEC (KiB/MiB/GiB). Base is bytes.'; $('#currencyControls').classList.add('hidden'); }
+      else if(state.kind==='time'){ $('#from').value='h'; $('#to').value='min'; $('#note').textContent='Time conversions are exact for ms, s, min, h, d, wk.'; $('#currencyControls').classList.add('hidden'); }
+      else if(state.kind==='currency'){ $('#from').value='USD'; $('#to').value='AED'; $('#note').textContent='Static sample FX rates (per USD). Edit in code or set an override pair rate.'; $('#currencyControls').classList.remove('hidden'); updateOverrideLabels(); }
+    }
+
+    function updateOverrideLabels(){ $('#ovFrom').textContent = $('#from').value; $('#ovTo').textContent = $('#to').value; }
+
+    function roundSmart(n, kind){
+      if(!isFinite(n)) return NaN;
+      if(kind==='currency') return Math.round(n*100)/100; // 2dp
+      const abs = Math.abs(n);
+      if(abs===0) return 0;
+      if(abs<0.001) return +n.toExponential(3);
+      if(abs<1) return Math.round(n*1000)/1000; // 3dp
+      if(abs<1000) return Math.round(n*100)/100; // 2dp
+      return Math.round(n);
+    }
+
+    function convert(){
+      const v = parseFloat($('#val').value);
+      const from = $('#from').value; const to = $('#to').value;
+      if(!isFinite(v)){ $('#out').textContent='—'; return; }
+      let res;
+      if(state.kind==='temperature') res = tempConvert(v, from, to);
+      else if(state.kind==='currency') res = currencyConvert(v, from, to);
+      else {
+        const map = unitsFor(state.kind);
+        const base = map[from].toBase ? map[from].toBase(v) : v;
+        res = map[to].fromBase ? map[to].fromBase(base) : v;
+      }
+      $('#out').textContent = `${roundSmart(res, state.kind)} ${unitsFor(state.kind)[to].name || to}`;
+    }
+
+    function tempConvert(val, from, to){
+      if(!isFinite(val)) return NaN;
+      let c;
+      if(from==='C') c=val; else if(from==='F') c=(val-32)*(5/9); else if(from==='K') c=val-273.15;
+      if(to==='C') return c; if(to==='F') return c*(9/5)+32; if(to==='K') return c+273.15;
+    }
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(btn=>{
+      btn.onclick = ()=>{
+        document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        state.kind = btn.dataset.kind;
+        populateUnits();
+        convert();
+      };
+    });
+
+    // Inputs
+    $('#val').addEventListener('input', convert);
+    $('#from').addEventListener('change', ()=>{ updateOverrideLabels(); convert(); });
+    $('#to').addEventListener('change',   ()=>{ updateOverrideLabels(); convert(); });
+    $('#swap').onclick = ()=>{ const a=$('#from').value; const b=$('#to').value; $('#from').value=b; $('#to').value=a; updateOverrideLabels(); convert(); };
+
+    // Theme + Copy
+    function applyTheme(){ document.documentElement.setAttribute('data-theme', state.theme); localStorage.setItem('uc_theme', state.theme); }
+    $('#theme').onclick = ()=>{ state.theme = state.theme==='dark'?'light':'dark'; applyTheme(); };
+    $('#copy').onclick = async ()=>{ const t = $('#out').textContent.trim(); if(!t) return; try{ await navigator.clipboard.writeText(t); $('#copy').textContent='✅ Copied'; setTimeout(()=>$('#copy').textContent='📋 Copy', 1200); }catch{ alert('Copy failed'); } };
+
+    // Currency override
+    $('#rateOverride').addEventListener('input', convert);
+    $('#clearOverride').onclick = ()=>{ $('#rateOverride').value=''; convert(); };
+
+    // Tests
+    function runTests(){
+      const out=[]; const pass=(n)=>out.push(`✅ ${n}`); const fail=(n,e)=>out.push(`❌ ${n}: ${e}`);
+      try{
+        // Temperature
+        const tf = tempConvert(0,'C','F'); Math.abs(tf-32)<1e-9 ? pass('0°C → 32°F') : fail('0°C to °F', tf);
+        const tk = tempConvert(0,'C','K'); Math.abs(tk-273.15)<1e-9 ? pass('0°C → 273.15K') : fail('0°C to K', tk);
+        // Distance (1 mi to km)
+        const km = DIST.km.fromBase(DIST.mi.toBase(1)); Math.abs(km-1.609344)<1e-6 ? pass('1 mi → 1.609344 km') : fail('mi to km', km);
+        // Weight (1 lb to g)
+        const g = WEIGHT.g.fromBase(WEIGHT.lb.toBase(1)); Math.abs(g-453.59237)<1e-5 ? pass('1 lb → 453.59237 g') : fail('lb to g', g);
+        // Data (1 MiB to bytes)
+        const bytes = DATA.B.fromBase(DATA.MiB.toBase(1)); bytes===1024**2 ? pass('1 MiB → 1,048,576 B') : fail('MiB to B', bytes);
+        // Time (2 h to min)
+        const mins = TIME.min.fromBase(TIME.h.toBase(2)); mins===120 ? pass('2 h → 120 min') : fail('h to min', mins);
+        // Currency (USD→AED using static)
+        const aed = currencyConvert(1,'USD','AED'); Math.abs(aed-3.6725)<1e-6 ? pass('1 USD → 3.6725 AED (static)') : fail('USD to AED', aed);
+      }catch(e){ fail('Unexpected test error', e.message); }
+      $('#tests').textContent = out.join('\n');
+    }
+
+    // Init
+    (function(){
+      applyTheme();
+      // default values
+      $('#val').value = 1;
+      populateUnits();
+      convert();
+      runTests();
+    })();
+  </script>
+</body>
+</html>
